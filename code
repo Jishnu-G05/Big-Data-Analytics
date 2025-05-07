@@ -1,0 +1,42 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, rand, when, avg, count
+import time
+
+# Initialize Spark Session
+spark = SparkSession.builder \
+    .appName("BigDataAnalyticsDemo") \
+    .config("spark.driver.memory", "2g") \
+    .getOrCreate()
+
+print("Spark Session Created.")
+
+# Step 1: Generate large synthetic dataset (10 million rows)
+num_rows = 10_000_000
+df = spark.range(0, num_rows) \
+    .withColumn("user_id", (col("id") % 100000).cast("integer")) \
+    .withColumn("age", (rand() * 60 + 18).cast("integer")) \
+    .withColumn("gender", when(rand() > 0.5, "Male").otherwise("Female")) \
+    .withColumn("purchase_amount", (rand() * 500).cast("float"))
+
+print("Synthetic data generated with 10 million rows.")
+
+# Step 2: Filter for adult users (age ≥ 18)
+adults_df = df.filter(col("age") >= 18)
+
+# Step 3: Perform group-based aggregation
+result_df = adults_df.groupBy("gender").agg(
+    avg("purchase_amount").alias("avg_purchase"),
+    count("*").alias("total_users")
+)
+
+# Step 4: Show result (for preview in terminal)
+result_df.show()
+
+# Step 5: Save results to Parquet (efficient columnar storage)
+output_path = "/tmp/big_data_output.parquet"
+result_df.write.mode("overwrite").parquet(output_path)
+
+print(f"Analytics results saved to {output_path}")
+
+# Stop the Spark session
+spark.stop()
